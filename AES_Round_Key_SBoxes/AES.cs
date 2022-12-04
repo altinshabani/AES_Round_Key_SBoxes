@@ -207,6 +207,506 @@ namespace AES_Round_Key_SBoxes
 
         #endregion
 
+
+        #region AES primitives
+        /// <summary>
+        /// XORes the given round key with the data
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="roundkey"></param>
+        /// <returns></returns>
+        public void AddRoundKey(byte[] data, byte[] roundkey)
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                data[i] ^= roundkey[i];
+            }
+        }
+
+        /// <summary>
+        /// Applies the SBox of AES to the data
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public void SubBytes(byte[] data)
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                data[i] = SBox[data[i]];
+            }
+        }
+
+        /// <summary>
+        /// Applies the inverse SBox of AES to the data
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public void SubBytesInverse(byte[] data)
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                data[i] = SBoxInverse[data[i]];
+            }
+        }
+
+        /// <summary>
+        /// Performs ShiftRows operation of AES
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public void ShiftRows(byte[] data)
+        {
+            // 0   4   8  12
+            // 1   5   9  13 <- 1 byte to left circular shift
+            // 2   6  10  14 <- 2 byte to left circular shift
+            // 3   7  11  15 <- 3 byte to left circular shift
+
+            byte swap;
+
+            //1. row: remains unshifted (do nothing)
+
+            //2. row: shift one to the left
+            swap = data[1];
+            data[1] = data[5];
+            data[5] = data[9];
+            data[9] = data[13];
+            data[13] = swap;
+
+            //3. row: shift two to the left = exchange every 2nd
+            swap = data[2];
+            data[2] = data[10];
+            data[10] = swap;
+            swap = data[6];
+            data[6] = data[14];
+            data[14] = swap;
+
+            //4. row: shift three to the left = shift to the right
+            swap = data[15];
+            data[15] = data[11];
+            data[11] = data[7];
+            data[7] = data[3];
+            data[3] = swap;
+        }
+
+        /// <summary>
+        /// Performs inverse ShiftRows operation of AES
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public void ShiftRowsInverse(byte[] data)
+        {
+            // 0   4   8  12
+            // 1   5   9  13 <- 1 byte to right circular shift
+            // 2   6  10  14 <- 2 byte to right circular shift
+            // 3   7  11  15 <- 3 byte to right circular shift
+
+            byte swap;
+
+            //1. row: remains unshifted (do nothing)
+
+            //2. row: shift one to the right
+            swap = data[13];
+            data[13] = data[9];
+            data[9] = data[5];
+            data[5] = data[1];
+            data[1] = swap;
+
+            //3. row: shift two to the right = exchange every 2nd
+            swap = data[2];
+            data[2] = data[10];
+            data[10] = swap;
+            swap = data[6];
+            data[6] = data[14];
+            data[14] = swap;
+
+            //4. row: shift three to the right = shift to the left
+            swap = data[3];
+            data[3] = data[7];
+            data[7] = data[11];
+            data[11] = data[15];
+            data[15] = swap;
+        }
+
+        /// <summary>
+        /// Performs AES MixColumns operation
+        /// See https://en.wikipedia.org/wiki/Rijndael_MixColumns
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public void MixColumns(byte[] data)
+        {
+            byte b0, b1, b2, b3;
+
+            // 0   4   8  12
+            // 1   5   9  13
+            // 2   6  10  14
+            // 3   7  11  15
+
+            // Matrix multiplication:
+            // [ d0 ]   [ 2 3 1 1 ]   [ b0 ]
+            // [ d1 ] = [ 1 2 3 1 ] * [ b1 ]
+            // [ d2 ]   [ 1 1 2 3 ]   [ b2 ]
+            // [ d3 ]   [ 3 1 1 2 ]   [ b3 ]
+
+            //Matrix multiplication is performed for each column vector
+            for (var i = 0; i < 16; i += 4)
+            {
+                b0 = data[i + 0];
+                b1 = data[i + 1];
+                b2 = data[i + 2];
+                b3 = data[i + 3];
+                data[i + 0] = (byte)(GaloisMult2[b0] ^ GaloisMult3[b1] ^ b2 ^ b3);
+                data[i + 1] = (byte)(b0 ^ GaloisMult2[b1] ^ GaloisMult3[b2] ^ b3);
+                data[i + 2] = (byte)(b0 ^ b1 ^ GaloisMult2[b2] ^ GaloisMult3[b3]);
+                data[i + 3] = (byte)(GaloisMult3[b0] ^ b1 ^ b2 ^ GaloisMult2[b3]);
+            }
+        }
+
+        /// <summary>
+        /// Performs inverse AES MixColumns operation
+        /// See https://en.wikipedia.org/wiki/Rijndael_MixColumns
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public void MixColumnsInverse(byte[] data)
+        {
+            byte b0, b1, b2, b3;
+
+            // 0   4   8  12
+            // 1   5   9  13
+            // 2   6  10  14
+            // 3   7  11  15
+
+            // Matrix multiplication:
+            // [ d0 ]   [ 14 11 13  9 ]   [ b0 ]
+            // [ d1 ] = [  9 14 11 13 ] * [ b1 ]
+            // [ d2 ]   [ 13  9 14 11 ]   [ b2 ]
+            // [ d3 ]   [ 11 13  9 14 ]   [ b3 ]
+
+            //Matrix multiplication is performed for each column vector
+            for (int i = 0; i < 16; i += 4)
+            {
+                b0 = data[i + 0];
+                b1 = data[i + 1];
+                b2 = data[i + 2];
+                b3 = data[i + 3];
+                data[i + 0] = (byte)(GaloisMult14[b0] ^ GaloisMult11[b1] ^ GaloisMult13[b2] ^ GaloisMult9[b3]);
+                data[i + 1] = (byte)(GaloisMult9[b0] ^ GaloisMult14[b1] ^ GaloisMult11[b2] ^ GaloisMult13[b3]);
+                data[i + 2] = (byte)(GaloisMult13[b0] ^ GaloisMult9[b1] ^ GaloisMult14[b2] ^ GaloisMult11[b3]);
+                data[i + 3] = (byte)(GaloisMult11[b0] ^ GaloisMult13[b1] ^ GaloisMult9[b2] ^ GaloisMult14[b3]);
+            }
+        }
+
+        #endregion
+
+        #region AES Key schedule
+
+        /// <summary>
+        /// Implementation of AES key expansion. See https://en.wikipedia.org/wiki/AES_key_schedule
+        /// Returns all round keys in one byte array
+        /// </summary>
+        /// <param name="K"></param>
+        /// <param name="R"></param>
+        /// <returns></returns>
+        public byte[] KeyExpansion(byte[] K, int R)
+        {
+            var N = K.Length / 4;
+            var W = new byte[4 * 4 * R];
+
+            for (int i = 0; i < 4 * R; i++)
+            {
+                if (i < N)
+                {
+                    SetWord(W, GetWord(K, i), i);
+                }
+                else if (i >= N && i % N == 0)
+                {
+                    var word = XOR(GetWord(W, i - N), SubWord(RotWord(GetWord(W, i - 1))));
+                    word = XOR(word, rcon(i / N));
+                    SetWord(W, word, i);
+                }
+                else if (i >= N && N > 6 && i % N == 4)
+                {
+                    var word = XOR(GetWord(W, i - N), SubWord(GetWord(W, i - 1)));
+                    SetWord(W, word, i);
+                }
+                else
+                {
+                    var word = XOR(GetWord(W, i - N), GetWord(W, i - 1));
+                    SetWord(W, word, i);
+                }
+            }
+
+            return W;
+
+            /// AES round constants
+            byte[] rcon(int i)
+            {
+                /*
+                //Pre-calculated rci values. See https://en.wikipedia.org/wiki/AES_key_schedule
+                var rci = new byte[] { 0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 
+                                       0x80, 0x1B, 0x36, 0x6C, 0xD8, 0xAB, 0x4D, 0x9A, 
+                                       0x2F, 0x5E, 0xBC, 0x63, 0xC6, 0x97, 0x35, 0x6A, 
+                                       0xD4, 0xB3, 0x7D, 0xFA, 0xEF, 0xC5 };
+                return new byte[] { rci[i], 0x00, 0x00, 0x00 };*/
+                int rc = 1;
+                for (var j = 2; j <= i; j++)
+                {
+                    if (rc < 0x80)
+                    {
+                        rc = 2 * rc;
+                    }
+                    else
+                    {
+                        rc = (byte)((2 * rc) ^ 0x11b);
+                    }
+                }
+                return new byte[] { (byte)rc, 0x00, 0x00, 0x00 };
+            }
+
+            ///Extract a 4 byte word from the given offset
+            byte[] GetWord(byte[] data, int offset)
+            {
+                var word = new byte[4];
+                word[0] = data[offset * 4 + 0];
+                word[1] = data[offset * 4 + 1];
+                word[2] = data[offset * 4 + 2];
+                word[3] = data[offset * 4 + 3];
+                return word;
+            }
+
+            ///Set a 4 byte word at the given offset
+            void SetWord(byte[] data, byte[] word, int offset)
+            {
+                data[offset * 4 + 0] = word[0];
+                data[offset * 4 + 1] = word[1];
+                data[offset * 4 + 2] = word[2];
+                data[offset * 4 + 3] = word[3];
+            }
+
+            ///XORes two given 4 byte words
+            byte[] XOR(byte[] w1, byte[] w2)
+            {
+                var word = new byte[4];
+                word[0] = (byte)(w1[0] ^ w2[0]);
+                word[1] = (byte)(w1[1] ^ w2[1]);
+                word[2] = (byte)(w1[2] ^ w2[2]);
+                word[3] = (byte)(w1[3] ^ w2[3]);
+                return word;
+            }
+
+            /// <summary>
+            /// RotWord operation of keyschedule of AES. See https://en.wikipedia.org/wiki/AES_key_schedule
+            /// </summary>
+            /// <param name="data"></param>
+            byte[] RotWord(byte[] data)
+            {
+                var ret = new byte[4];
+                ret[0] = data[1];
+                ret[1] = data[2];
+                ret[2] = data[3];
+                ret[3] = data[0];
+                return ret;
+            }
+
+            /// <summary>
+            /// SubWord operation of keyschedule of AES. See https://en.wikipedia.org/wiki/AES_key_schedule
+            /// </summary>
+            /// <param name="data"></param>
+            byte[] SubWord(byte[] data)
+            {
+                var ret = new byte[4];
+                ret[0] = SBox[data[0]];
+                ret[1] = SBox[data[1]];
+                ret[2] = SBox[data[2]];
+                ret[3] = SBox[data[3]];
+                return ret;
+            }
+        }
+
+        #endregion
+
+        #region AES 128, 192, 256 encryption and decryption
+
+        /// <summary>
+        /// AES-128 encryption
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public byte[] Encrypt128(byte[] text, byte[] key)
+        {
+            return Encrypt(text, key, 10);
+        }
+
+        /// <summary>
+        /// AES-128 decryption
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public byte[] Decrypt128(byte[] text, byte[] key)
+        {
+            return Decrypt(text, key, 10);
+        }
+
+        /// <summary>
+        /// AES-192 encryption
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public byte[] Encrypt192(byte[] text, byte[] key)
+        {
+            return Encrypt(text, key, 12);
+        }
+
+        /// <summary>
+        /// AES-192 decryption
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public byte[] Decrypt192(byte[] text, byte[] key)
+        {
+            return Decrypt(text, key, 12);
+        }
+
+        /// <summary>
+        /// AES-256 encryption
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public byte[] Encrypt256(byte[] text, byte[] key)
+        {
+            return Encrypt(text, key, 14);
+        }
+
+        /// <summary>
+        /// AES-256 decryption
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public byte[] Decrypt256(byte[] text, byte[] key)
+        {
+            return Decrypt(text, key, 14);
+        }
+
+        /// <summary>
+        /// Encrypt using R rounds
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <param name="R"></param>
+        /// <returns></returns>
+        public byte[] Encrypt(byte[] text, byte[] key, int R)
+        {
+            //key expansion --> make multiple out of the given key
+            var roundkeys = KeyExpansion(key, R + 1);
+
+            //XOR 0 key
+            AddRoundKey(text, GetRoundKey(roundkeys, 0));
+
+            //perform rounds
+            for (var r = 1; r < R; r++)
+            {
+                SubBytes(text);
+                ShiftRows(text);
+                MixColumns(text);
+                AddRoundKey(text, GetRoundKey(roundkeys, r));
+            }
+
+            //final round without mix columns
+            SubBytes(text);
+            ShiftRows(text);
+            AddRoundKey(text, GetRoundKey(roundkeys, R));
+
+            //return encrypted text
+            return text;
+
+            ///Get a round key from the round keys array
+            byte[] GetRoundKey(byte[] data, int offset)
+            {
+                var word = new byte[16];
+                word[0] = data[offset * 16 + 0];
+                word[1] = data[offset * 16 + 1];
+                word[2] = data[offset * 16 + 2];
+                word[3] = data[offset * 16 + 3];
+                word[4] = data[offset * 16 + 4];
+                word[5] = data[offset * 16 + 5];
+                word[6] = data[offset * 16 + 6];
+                word[7] = data[offset * 16 + 7];
+                word[8] = data[offset * 16 + 8];
+                word[9] = data[offset * 16 + 9];
+                word[10] = data[offset * 16 + 10];
+                word[11] = data[offset * 16 + 11];
+                word[12] = data[offset * 16 + 12];
+                word[13] = data[offset * 16 + 13];
+                word[14] = data[offset * 16 + 14];
+                word[15] = data[offset * 16 + 15];
+                return word;
+            }
+        }
+
+        /// <summary>
+        /// Decrypt using R rounds
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="key"></param>
+        /// <param name="R"></param>
+        /// <returns></returns>
+        public byte[] Decrypt(byte[] text, byte[] key, int R)
+        {
+            //key expansion --> make multiple out of the given key
+            var roundkeys = KeyExpansion(key, R + 1);
+
+            //final round without mix columns
+            AddRoundKey(text, GetRoundKey(roundkeys, R));
+            ShiftRowsInverse(text);
+            SubBytesInverse(text);
+
+            //perform rounds
+            for (var r = R - 1; r >= 1; r--)
+            {
+                AddRoundKey(text, GetRoundKey(roundkeys, r));
+                MixColumnsInverse(text);
+                ShiftRowsInverse(text);
+                SubBytesInverse(text);
+            }
+
+            //XOR 0 key
+            AddRoundKey(text, GetRoundKey(roundkeys, 0));
+
+            //return decrypted text
+            return text;
+
+            ///Get a round key from the round keys array
+            byte[] GetRoundKey(byte[] data, int offset)
+            {
+                var word = new byte[16];
+                word[0] = data[offset * 16 + 0];
+                word[1] = data[offset * 16 + 1];
+                word[2] = data[offset * 16 + 2];
+                word[3] = data[offset * 16 + 3];
+                word[4] = data[offset * 16 + 4];
+                word[5] = data[offset * 16 + 5];
+                word[6] = data[offset * 16 + 6];
+                word[7] = data[offset * 16 + 7];
+                word[8] = data[offset * 16 + 8];
+                word[9] = data[offset * 16 + 9];
+                word[10] = data[offset * 16 + 10];
+                word[11] = data[offset * 16 + 11];
+                word[12] = data[offset * 16 + 12];
+                word[13] = data[offset * 16 + 13];
+                word[14] = data[offset * 16 + 14];
+                word[15] = data[offset * 16 + 15];
+                return word;
+            }
+        }
+        #endregion
+
     }
 }
 
