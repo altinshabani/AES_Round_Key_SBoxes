@@ -57,8 +57,44 @@ namespace AES_Round_Key_SBoxes
             Console.WriteLine(AES.ToHex(data));
             Console.ReadKey();
         }
+        public static void TestTextAES()
+        {
+            Console.WriteLine("Some test encryption and decryption of text-based AES:");
+            string text, key, ciphertext, plaintext;
+            var aes = new TextAES();
+
+            Console.WriteLine("Testing with first key:");
+            text = "HELLOWORLDTEXTXXTESTWITHFIRSTKEY";
+            key = "AAAAAAAAAAAAAAAA";
+            Console.WriteLine(text);
+            ciphertext = aes.EncryptECB(text, key);
+            Console.WriteLine(ciphertext);
+            plaintext = aes.DecryptECB(ciphertext, key);
+            Console.WriteLine(plaintext);
+
+            Console.WriteLine("Testing with second key:");
+            text = "HELLOXWORLDXTHISXISXAXTESTXOFXMYXTEXTXAESXCIPHER";
+            key = "BAAAAAAAAAAAAAAA";
+            Console.WriteLine(text);
+            ciphertext = aes.EncryptECB(text, key);
+            Console.WriteLine(ciphertext);
+            plaintext = aes.DecryptECB(ciphertext, key);
+            Console.WriteLine(plaintext);
+
+            Console.WriteLine("Testing with random key:");
+            text = "HELLOXWORLDXTHISXISXAXTESTXOFXMYXTEXTXAESXCIPHER";
+            key = aes.GenerateRandomTextKey();
+            Console.WriteLine(text);
+            ciphertext = aes.EncryptECB(text, key);
+            Console.WriteLine(ciphertext);
+            plaintext = aes.DecryptECB(ciphertext, key);
+            Console.WriteLine(plaintext);
+            Console.ReadKey();
+        }
     }
 }
+
+
 
 
         
